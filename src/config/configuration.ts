@@ -17,6 +17,15 @@ export interface MailConfig {
   secure: boolean;
 }
 
+export interface RbacConfigOptions {
+  cacheTtlSeconds: number;
+}
+
+export interface SwaggerConfig {
+  enabled: boolean;
+  path: string;
+}
+
 export interface OtpConfig {
   ttlSeconds: number;
   maxAttempts: number;
@@ -33,6 +42,8 @@ export interface AppConfig {
   database: DatabaseConfig;
   mail: MailConfig;
   otp: OtpConfig;
+  rbac: RbacConfigOptions;
+  swagger: SwaggerConfig;
 }
 
 export default (): AppConfig => ({
@@ -58,6 +69,13 @@ export default (): AppConfig => ({
     password: process.env.MAIL_PASSWORD ?? '',
     from: process.env.MAIL_FROM ?? 'File Transfer <noreply@localhost>',
     secure: process.env.MAIL_SECURE === 'true',
+  },
+  rbac: {
+    cacheTtlSeconds: parseInt(process.env.RBAC_CACHE_TTL_SECONDS ?? '30', 10),
+  },
+  swagger: {
+    enabled: (process.env.SWAGGER_ENABLED ?? 'true') === 'true',
+    path: process.env.SWAGGER_PATH ?? 'docs',
   },
   otp: {
     ttlSeconds: parseInt(process.env.OTP_TTL_SECONDS ?? '600', 10),
