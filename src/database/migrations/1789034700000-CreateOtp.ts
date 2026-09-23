@@ -15,7 +15,6 @@ export class CreateOtp1789034700000 implements MigrationInterface {
         "code_hash" character varying NOT NULL,
         "attempts" integer NOT NULL DEFAULT 0,
         "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL,
-        "consumed_at" TIMESTAMP WITH TIME ZONE,
         "last_sent_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -23,13 +22,10 @@ export class CreateOtp1789034700000 implements MigrationInterface {
       )`,
     );
     await queryRunner.query(
-      `CREATE INDEX "IDX_otp_user_id_purpose" ON "otp" ("user_id", "purpose")`,
-    );
-    await queryRunner.query(
       `CREATE INDEX "IDX_otp_expires_at" ON "otp" ("expires_at")`,
     );
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "UQ_otp_pending_user_id_purpose" ON "otp" ("user_id", "purpose") WHERE "consumed_at" IS NULL`,
+      `CREATE UNIQUE INDEX "UQ_otp_user_id_purpose" ON "otp" ("user_id", "purpose")`,
     );
     await queryRunner.query(
       `ALTER TABLE "otp" ADD CONSTRAINT "FK_otp_user_id" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
@@ -40,11 +36,8 @@ export class CreateOtp1789034700000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "otp" DROP CONSTRAINT "FK_otp_user_id"`,
     );
-    await queryRunner.query(
-      `DROP INDEX "public"."UQ_otp_pending_user_id_purpose"`,
-    );
+    await queryRunner.query(`DROP INDEX "public"."UQ_otp_user_id_purpose"`);
     await queryRunner.query(`DROP INDEX "public"."IDX_otp_expires_at"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_otp_user_id_purpose"`);
     await queryRunner.query(`DROP TABLE "otp"`);
     await queryRunner.query(`DROP TYPE "public"."otp_purpose_enum"`);
   }
