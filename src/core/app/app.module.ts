@@ -7,6 +7,7 @@ import { HealthModule } from '../health/health.module';
 import { UsersModule } from '../../modules/users/users.module';
 import { AuthModule } from '../../modules/auth/auth.module';
 import { RbacModule } from '../../modules/rbac/rbac.module';
+import { UserProfileModule } from '../../modules/user-profile/user-profile.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { RbacModule } from '../../modules/rbac/rbac.module';
     UsersModule,
     AuthModule,
     RbacModule,
+    UserProfileModule,
   ],
 })
 export class AppModule {}
