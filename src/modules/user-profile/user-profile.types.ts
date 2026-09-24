@@ -17,3 +17,16 @@ export interface AdminUserProfile extends UserProfile {
   failedLoginAttempts: number;
   lockedUntil: Date | null;
 }
+
+export interface EmailChangeChallenge {
+  requiresConfirmation: true;
+  challengeId: string;
+  expiresAt: string;
+}
+
+export interface EmailChangeConfirmed {
+  message: string;
+  email: string;
+}
+
+export type AvatarFormat = 'jpg' | 'png' | 'webp' | 'gif';

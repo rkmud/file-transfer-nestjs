@@ -13,6 +13,7 @@ import { User } from './users.entity';
 export enum OtpPurpose {
   Registration = 'registration',
   PasswordReset = 'password_reset',
+  EmailChange = 'email_change',
 }
 
 @Entity({ name: 'otp' })
@@ -34,6 +35,9 @@ export class Otp {
 
   @Column({ name: 'code_hash', type: 'varchar' })
   codeHash!: string;
+
+  @Column({ name: 'new_email', type: 'varchar', nullable: true })
+  newEmail!: string | null;
 
   @Column({ type: 'int', default: 0 })
   attempts!: number;

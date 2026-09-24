@@ -3,6 +3,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { User } from './users.entity';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -70,6 +71,19 @@ export class UsersService {
     return this.userRepository.findOne({ where: { id } });
   }
 
+  async update(id: string, changes: Partial<User>): Promise<void> {
+    if (Object.keys(changes).length > 0) {
+      await this.userRepository.update({ id }, changes);
+    }
+  }
+
+  async setPassword(id: string, password: string): Promise<void> {
+    await this.userRepository.update(
+      { id },
+      { password: await bcrypt.hash(password, SALT_ROUNDS) },
+    );
+  }
+
   async markEmailVerified(id: string): Promise<void> {
     await this.userRepository.update({ id }, { isEmailVerified: true });
   }
@@ -115,7 +129,11 @@ export class UsersService {
     );
   }
 
-  async issueOtp(userId: string, purpose: OtpPurpose): Promise<IssuedOtp> {
+  async issueOtp(
+    userId: string,
+    purpose: OtpPurpose,
+    newEmail: string | null = null,
+  ): Promise<IssuedOtp> {
     const { ttlSeconds, resendCooldownSeconds } = this.getOtpConfig();
     const pending = await this.findPendingOtp(userId, purpose);
     const now = new Date();
@@ -148,6 +166,7 @@ export class UsersService {
     const otp = this.otpRepository.create({
       userId,
       purpose,
+      newEmail,
       codeHash: await bcrypt.hash(code, SALT_ROUNDS),
       attempts: 0,
       expiresAt: new Date(now.getTime() + ttlSeconds * 1000),
@@ -164,12 +183,36 @@ export class UsersService {
     purpose: OtpPurpose,
     code: string,
   ): Promise<void> {
-    const { maxAttempts } = this.getOtpConfig();
     const otp = await this.findPendingOtp(userId, purpose);
 
     if (!otp) {
       throw new BadRequestException('No verification code was requested');
     }
+
+    await this.consumeOtp(otp, code);
+  }
+
+  async verifyOtpChallenge(
+    challengeId: string,
+    userId: string,
+    purpose: OtpPurpose,
+    code: string,
+  ): Promise<Otp> {
+    const otp = await this.otpRepository.findOne({
+      where: { id: challengeId, userId, purpose },
+    });
+
+    if (!otp) {
+      throw new NotFoundException('Challenge not found');
+    }
+
+    await this.consumeOtp(otp, code);
+
+    return otp;
+  }
+
+  private async consumeOtp(otp: Otp, code: string): Promise<void> {
+    const { maxAttempts } = this.getOtpConfig();
 
     if (otp.expiresAt <= new Date()) {
       throw new BadRequestException('Otp expired');

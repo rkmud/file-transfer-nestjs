@@ -50,6 +50,12 @@ export interface CookieConfig {
   domain: string | undefined;
 }
 
+export interface UploadsConfig {
+  dir: string;
+  publicPrefix: string;
+  avatarMaxBytes: number;
+}
+
 export interface AppConfig {
   nodeEnv: string;
   port: number;
@@ -69,6 +75,7 @@ export interface AppConfig {
   throttle: ThrottleConfig;
   rbac: RbacConfigOptions;
   swagger: SwaggerConfig;
+  uploads: UploadsConfig;
 }
 
 export default (): AppConfig => ({
@@ -115,6 +122,14 @@ export default (): AppConfig => ({
   swagger: {
     enabled: (process.env.SWAGGER_ENABLED ?? 'true') === 'true',
     path: process.env.SWAGGER_PATH ?? 'docs',
+  },
+  uploads: {
+    dir: process.env.UPLOADS_DIR ?? 'uploads',
+    publicPrefix: process.env.UPLOADS_PUBLIC_PREFIX ?? '/static',
+    avatarMaxBytes: parseInt(
+      process.env.AVATAR_MAX_BYTES ?? String(5 * 1024 * 1024),
+      10,
+    ),
   },
   otp: {
     ttlSeconds: parseInt(process.env.OTP_TTL_SECONDS ?? '600', 10),
