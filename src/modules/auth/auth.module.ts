@@ -11,6 +11,6 @@ import { UsersModule } from '@/modules/users/users.module';
   controllers: [AuthController],
   providers: [AuthService, AuthCookieService],
   imports: [UsersModule, MailModule, AuthTokenModule, RbacModule],
-  exports: [AuthService],
+  exports: [AuthService, AuthCookieService],
 })
 export class AuthModule {}

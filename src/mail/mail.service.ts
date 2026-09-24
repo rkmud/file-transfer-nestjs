@@ -32,6 +32,20 @@ export class MailService {
     });
   }
 
+  async sendAccountDeletionEmail(
+    email: string,
+    name: string,
+    code: string,
+    expiresAt: Date,
+  ): Promise<void> {
+    await this.mailerService.sendMail({
+      to: email,
+      subject: 'Confirm account deletion',
+      template: 'account-deletion-code',
+      context: { name, code, minutesLeft: this.minutesLeft(expiresAt) },
+    });
+  }
+
   private minutesLeft(expiresAt: Date): number {
     return Math.max(1, Math.round((expiresAt.getTime() - Date.now()) / 60_000));
   }

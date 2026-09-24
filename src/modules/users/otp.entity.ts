@@ -14,6 +14,7 @@ export enum OtpPurpose {
   Registration = 'registration',
   PasswordReset = 'password_reset',
   EmailChange = 'email_change',
+  AccountDeletion = 'account_deletion',
 }
 
 @Entity({ name: 'otp' })

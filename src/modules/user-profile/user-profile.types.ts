@@ -29,4 +29,18 @@ export interface EmailChangeConfirmed {
   email: string;
 }
 
+export interface DeletionChallenge {
+  requiresConfirmation: true;
+  challengeId: string;
+  expiresAt: string;
+  message: string;
+}
+
+export interface UserDeleted {
+  message: string;
+  userId: string;
+}
+
+export type DeletionResult = DeletionChallenge | UserDeleted;
+
 export type AvatarFormat = 'jpg' | 'png' | 'webp' | 'gif';

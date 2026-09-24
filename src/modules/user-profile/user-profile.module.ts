@@ -5,6 +5,7 @@ import { memoryStorage } from 'multer';
 import { AuthTokenModule } from '@/common/auth-token/auth-token.module';
 import { UploadsConfig } from '@/core/config/configuration';
 import { MailModule } from '@/mail/mail.module';
+import { AuthModule } from '@/modules/auth/auth.module';
 import { RbacModule } from '@/modules/rbac/rbac.module';
 import { UsersModule } from '@/modules/users/users.module';
 import { AvatarStorageService } from './avatar-storage.service';
@@ -15,6 +16,7 @@ import { UserProfileService } from './user-profile.service';
   imports: [
     UsersModule,
     AuthTokenModule,
+    AuthModule,
     RbacModule,
     MailModule,
     MulterModule.registerAsync({

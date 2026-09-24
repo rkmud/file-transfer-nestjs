@@ -76,6 +76,12 @@ export class UsersService {
       await this.userRepository.update({ id }, changes);
     }
   }
+  /** Hard delete; OTP rows and role assignments are removed by FK cascade. */
+  async delete(id: string): Promise<boolean> {
+    const result = await this.userRepository.delete({ id });
+
+    return (result.affected ?? 0) > 0;
+  }
 
   async setPassword(id: string, password: string): Promise<void> {
     await this.userRepository.update(

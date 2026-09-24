@@ -18,6 +18,7 @@ import {
   ConfirmEmailChangeDto,
   RequestEmailChangeDto,
 } from './dto/email-change.dto';
+import { ConfirmDeletionDto, DeleteUserDto } from './dto/delete-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import {
   ADMIN_ONLY_FIELDS,
@@ -27,8 +28,11 @@ import {
 } from './user-profile.constants';
 import {
   AdminUserProfile,
+  DeletionChallenge,
+  DeletionResult,
   EmailChangeChallenge,
   EmailChangeConfirmed,
+  UserDeleted,
   UserProfile,
 } from './user-profile.types';
 
@@ -37,6 +41,7 @@ type UsersAction = (typeof USERS_ACTIONS)[keyof typeof USERS_ACTIONS];
 @Injectable()
 export class UserProfileService {
   private readonly logger = new Logger(UserProfileService.name);
+  private readonly deletionsInProgress = new Set<string>();
 
   constructor(
     private usersService: UsersService,
@@ -214,6 +219,126 @@ export class UserProfileService {
     );
 
     return { message: 'Email updated successfully', email: newEmail };
+  }
+
+  async deleteUser(
+    actorUserId: string,
+    userId: string,
+    dto: DeleteUserDto,
+  ): Promise<DeletionResult> {
+    if (actorUserId === userId) {
+      return this.requestDeletion(actorUserId, userId);
+    }
+
+    if (!(await this.can(actorUserId, USERS_ACTIONS.delete))) {
+      this.denyAccess(actorUserId, userId);
+    }
+
+    return this.withDeletionLock(userId, async () => {
+      const user = await this.requireUser(userId);
+
+      return this.executeDeletion(actorUserId, user, dto.reason);
+    });
+  }
+
+  private async requestDeletion(
+    actorUserId: string,
+    userId: string,
+  ): Promise<DeletionChallenge> {
+    this.assertSelf(actorUserId, userId);
+    this.assertNoDeletionInProgress(userId);
+
+    const user = await this.requireUser(userId);
+    const otp = await this.usersService.issueOtp(
+      user.id,
+      OtpPurpose.AccountDeletion,
+    );
+
+    await this.mailService
+      .sendAccountDeletionEmail(
+        user.email,
+        this.displayName(user),
+        otp.code,
+        otp.expiresAt,
+      )
+      .catch(() => {
+        throw new ServiceUnavailableException('Failed to send email');
+      });
+
+    this.logger.log(
+      `Deletion requested: userId=${user.id} challengeId=${otp.id}`,
+    );
+
+    return {
+      requiresConfirmation: true,
+      challengeId: otp.id,
+      expiresAt: otp.expiresAt.toISOString(),
+      message: 'Deletion OTP code sent to your email address',
+    };
+  }
+
+  async confirmDeletion(
+    actorUserId: string,
+    userId: string,
+    dto: ConfirmDeletionDto,
+  ): Promise<UserDeleted> {
+    this.assertSelf(actorUserId, userId);
+
+    return this.withDeletionLock(userId, async () => {
+      const user = await this.requireUser(userId);
+
+      await this.usersService.verifyOtpChallenge(
+        dto.challengeId,
+        user.id,
+        OtpPurpose.AccountDeletion,
+        dto.code,
+      );
+
+      return this.executeDeletion(actorUserId, user);
+    });
+  }
+
+  private async executeDeletion(
+    actorUserId: string,
+    user: User,
+    reason?: string,
+  ): Promise<UserDeleted> {
+    const deleted = await this.usersService.delete(user.id);
+
+    if (!deleted) {
+      throw new NotFoundException('User not found');
+    }
+
+    this.rbacService.invalidate();
+    await this.avatarStorage.remove(user.photo);
+
+    this.logger.log(
+      `User deleted: actorUserId=${actorUserId} targetUserId=${user.id} mode=${
+        actorUserId === user.id ? 'self' : 'admin'
+      }${reason ? ` reason=${JSON.stringify(reason)}` : ''}`,
+    );
+
+    return { message: 'User account deleted', userId: user.id };
+  }
+
+  private async withDeletionLock<T>(
+    userId: string,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    this.assertNoDeletionInProgress(userId);
+    this.deletionsInProgress.add(userId);
+
+    try {
+      return await action();
+    } finally {
+      this.deletionsInProgress.delete(userId);
+    }
+  }
+
+  private assertNoDeletionInProgress(userId: string): void {
+    if (this.deletionsInProgress.has(userId)) {
+      throw new ConflictException('Deletion is already in progress');
+    }
   }
 
   private collectChanges(dto: UpdateUserDto): Partial<User> {

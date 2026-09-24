@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -8,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -33,10 +35,18 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { Response } from 'express';
 import { AccessTokenGuard } from '@/common/auth-token/access-token.guard';
 import { TokenPayload } from '@/common/auth-token/auth-token.types';
 import { CurrentUser } from '@/common/auth-token/current-user.decorator';
 import { SWAGGER_COOKIE_AUTH } from '@/core/swagger/swagger.constants';
+import { AuthCookieService } from '@/modules/auth/auth-cookie.service';
+import {
+  ConfirmDeletionDto,
+  DeleteUserDto,
+  DeletionChallengeResponseDto,
+  UserDeletedResponseDto,
+} from './dto/delete-user.dto';
 import {
   ConfirmEmailChangeDto,
   EmailChangeChallengeResponseDto,
@@ -52,8 +62,10 @@ import { AVATAR_FIELD } from './user-profile.constants';
 import { UserProfileService } from './user-profile.service';
 import {
   AdminUserProfile,
+  DeletionResult,
   EmailChangeChallenge,
   EmailChangeConfirmed,
+  UserDeleted,
   UserProfile,
 } from './user-profile.types';
 
@@ -64,12 +76,22 @@ const PROFILE_RESPONSE_SCHEMA = {
   ],
 };
 
+const DELETION_RESPONSE_SCHEMA = {
+  oneOf: [
+    { $ref: getSchemaPath(DeletionChallengeResponseDto) },
+    { $ref: getSchemaPath(UserDeletedResponseDto) },
+  ],
+};
+
 @ApiTags('Users')
 @ApiCookieAuth(SWAGGER_COOKIE_AUTH)
 @Controller('users')
 @UseGuards(ThrottlerGuard, AccessTokenGuard)
 export class UserProfileController {
-  constructor(private userProfileService: UserProfileService) {}
+  constructor(
+    private userProfileService: UserProfileService,
+    private authCookieService: AuthCookieService,
+  ) {}
 
   @Get(':userId')
   @ApiOperation({
@@ -181,5 +203,71 @@ export class UserProfileController {
     @Body() dto: ConfirmEmailChangeDto,
   ): Promise<EmailChangeConfirmed> {
     return this.userProfileService.confirmEmailChange(user.sub, userId, dto);
+  }
+
+  @Delete(':userId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Delete a user account',
+    description:
+      'Self: sends a 6-digit code to the account email and returns a challenge; finish the deletion via /deletion-confirm. Holders of users@delete (admins) delete other users immediately, with an optional audit reason.',
+  })
+  @ApiParam({ name: 'userId', format: 'uuid', description: 'Target user' })
+  @ApiExtraModels(DeletionChallengeResponseDto, UserDeletedResponseDto)
+  @ApiOkResponse({
+    description: 'Deletion challenge issued, or the account was deleted',
+    schema: DELETION_RESPONSE_SCHEMA,
+  })
+  @ApiBadRequestResponse({ description: 'Invalid payload' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token' })
+  @ApiForbiddenResponse({
+    description: "Deleting another user's account without admin rights",
+  })
+  @ApiNotFoundResponse({ description: 'User not found' })
+  @ApiConflictResponse({ description: 'Deletion is already in progress' })
+  @ApiTooManyRequestsResponse({
+    description: 'Resend cooldown or rate limit exceeded',
+  })
+  @ApiServiceUnavailableResponse({ description: 'Failed to send email' })
+  deleteUser(
+    @CurrentUser() user: TokenPayload,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Body() dto: DeleteUserDto,
+  ): Promise<DeletionResult> {
+    return this.userProfileService.deleteUser(user.sub, userId, dto);
+  }
+
+  @Post(':userId/deletion-confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Confirm own account deletion',
+    description:
+      'Self only. Verifies the code, deletes the account and clears auth cookies.',
+  })
+  @ApiParam({ name: 'userId', format: 'uuid', description: 'Own user id' })
+  @ApiOkResponse({ type: UserDeletedResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid or expired code' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token' })
+  @ApiForbiddenResponse({ description: 'userId is not the current user' })
+  @ApiNotFoundResponse({ description: 'User or challenge not found' })
+  @ApiConflictResponse({ description: 'Deletion is already in progress' })
+  @ApiTooManyRequestsResponse({
+    description: 'Too many invalid attempts or rate limit exceeded',
+  })
+  async confirmDeletion(
+    @CurrentUser() user: TokenPayload,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Body() dto: ConfirmDeletionDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<UserDeleted> {
+    const result = await this.userProfileService.confirmDeletion(
+      user.sub,
+      userId,
+      dto,
+    );
+
+    this.authCookieService.clearAuthCookies(res);
+
+    return result;
   }
 }
