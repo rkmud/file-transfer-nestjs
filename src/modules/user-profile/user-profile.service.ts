@@ -19,7 +19,9 @@ import {
   RequestEmailChangeDto,
 } from './dto/email-change.dto';
 import { ConfirmDeletionDto, DeleteUserDto } from './dto/delete-user.dto';
+import { ListUsersQueryDto } from './dto/list-users.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { decodeUserListCursor, encodeUserListCursor } from './user-list-cursor';
 import {
   ADMIN_ONLY_FIELDS,
   SELF_EDITABLE_FIELDS,
@@ -33,6 +35,7 @@ import {
   EmailChangeChallenge,
   EmailChangeConfirmed,
   UserDeleted,
+  UserListPage,
   UserProfile,
 } from './user-profile.types';
 
@@ -63,6 +66,38 @@ export class UserProfileService {
     const user = await this.requireUser(userId);
 
     return isAdmin ? this.toAdminProfile(user) : this.toProfile(user);
+  }
+
+  async listUsers(
+    actorUserId: string,
+    query: ListUsersQueryDto,
+  ): Promise<UserListPage> {
+    const { sort, order } = query;
+    const after = query.cursor
+      ? decodeUserListCursor(query.cursor, sort, order)
+      : undefined;
+
+    const page = await this.usersService.findPage({
+      q: query.q,
+      status: query.status,
+      sort,
+      order,
+      limit: query.limit,
+      after,
+    });
+
+    this.logger.log(
+      `Users listed: actorUserId=${actorUserId} count=${page.items.length} sort=${sort} order=${order}${
+        query.status ? ` status=${query.status}` : ''
+      }${query.q ? ' search=true' : ''}${after ? ' cursor=true' : ''}`,
+    );
+
+    return {
+      items: page.items.map((user) => this.toAdminProfile(user)),
+      nextCursor: page.nextKey
+        ? encodeUserListCursor(sort, order, page.nextKey)
+        : null,
+    };
   }
 
   async updateProfile(

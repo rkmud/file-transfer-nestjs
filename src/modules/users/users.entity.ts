@@ -2,10 +2,17 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
+@Index('IDX_users_email_trgm', { synchronize: false })
+@Index('IDX_users_first_name_trgm', { synchronize: false })
+@Index('IDX_users_last_name_trgm', { synchronize: false })
+@Index('IDX_users_created_at_id', { synchronize: false })
+@Index('IDX_users_last_login_at_id', { synchronize: false })
+@Index('IDX_users_last_login_at_id_desc', { synchronize: false })
 @Entity({ name: 'users' })
 export class User {
   @PrimaryGeneratedColumn('uuid')

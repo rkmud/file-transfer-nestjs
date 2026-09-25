@@ -1,10 +1,22 @@
+import { RBAC_ACTION_SEPARATOR } from '@/modules/rbac/rbac.constants';
+
 export const USERS_PERMISSION = 'users';
 
 export const USERS_ACTIONS = {
   read: 'read',
   update: 'update',
   delete: 'delete',
+  list: 'list',
 } as const;
+
+export const USERS_LIST_PERMISSION = `${USERS_PERMISSION}${RBAC_ACTION_SEPARATOR}${USERS_ACTIONS.list}`;
+
+export const USERS_LIST_THROTTLE = { limit: 5, ttl: 60_000 } as const;
+
+export const USERS_LIST_DEFAULT_LIMIT = 20;
+export const USERS_LIST_MAX_LIMIT = 100;
+export const USERS_LIST_SEARCH_MAX_LENGTH = 100;
+export const USERS_LIST_CURSOR_MAX_LENGTH = 512;
 
 export const SELF_EDITABLE_FIELDS = [
   'firstName',

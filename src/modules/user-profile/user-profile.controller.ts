@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Res,
   UploadedFile,
   UseGuards,
@@ -34,13 +35,15 @@ import {
   ApiUnsupportedMediaTypeResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Response } from 'express';
 import { AccessTokenGuard } from '@/common/auth-token/access-token.guard';
 import { TokenPayload } from '@/common/auth-token/auth-token.types';
 import { CurrentUser } from '@/common/auth-token/current-user.decorator';
 import { SWAGGER_COOKIE_AUTH } from '@/core/swagger/swagger.constants';
 import { AuthCookieService } from '@/modules/auth/auth-cookie.service';
+import { RbacPermissions } from '@/modules/rbac/decorators/rbac-permissions.decorator';
+import { RbacGuard } from '@/modules/rbac/guards/rbac.guard';
 import {
   ConfirmDeletionDto,
   DeleteUserDto,
@@ -53,12 +56,17 @@ import {
   EmailChangeConfirmedResponseDto,
   RequestEmailChangeDto,
 } from './dto/email-change.dto';
+import { ListUsersQueryDto, UserListResponseDto } from './dto/list-users.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import {
   AdminUserProfileResponseDto,
   UserProfileResponseDto,
 } from './dto/user-profile.dto';
-import { AVATAR_FIELD } from './user-profile.constants';
+import {
+  AVATAR_FIELD,
+  USERS_LIST_PERMISSION,
+  USERS_LIST_THROTTLE,
+} from './user-profile.constants';
 import { UserProfileService } from './user-profile.service';
 import {
   AdminUserProfile,
@@ -66,6 +74,7 @@ import {
   EmailChangeChallenge,
   EmailChangeConfirmed,
   UserDeleted,
+  UserListPage,
   UserProfile,
 } from './user-profile.types';
 
@@ -92,6 +101,29 @@ export class UserProfileController {
     private userProfileService: UserProfileService,
     private authCookieService: AuthCookieService,
   ) {}
+
+  @Get()
+  @UseGuards(RbacGuard)
+  @RbacPermissions(USERS_LIST_PERMISSION)
+  @Throttle({ default: USERS_LIST_THROTTLE })
+  @ApiOperation({
+    summary: 'List users',
+    description:
+      'Admins only (users@list). Cursor-paginated user directory with search, status filter and sorting. Rows carry the same fields as an admin profile read, including failedLoginAttempts and lockedUntil.',
+  })
+  @ApiOkResponse({ type: UserListResponseDto })
+  @ApiBadRequestResponse({
+    description: 'Invalid limit, sort, order, status or malformed cursor',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid access token' })
+  @ApiForbiddenResponse({ description: 'The user is not an admin' })
+  @ApiTooManyRequestsResponse({ description: 'Rate limit exceeded' })
+  listUsers(
+    @CurrentUser() user: TokenPayload,
+    @Query() query: ListUsersQueryDto,
+  ): Promise<UserListPage> {
+    return this.userProfileService.listUsers(user.sub, query);
+  }
 
   @Get(':userId')
   @ApiOperation({

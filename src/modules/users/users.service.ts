@@ -7,7 +7,8 @@ import {
 } from '@nestjs/common';
 import { User } from './users.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
+import { isUUID } from 'class-validator';
 import { ConfigService } from '@nestjs/config';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
@@ -15,8 +16,45 @@ import { randomInt } from 'crypto';
 import { SALT_ROUNDS } from '@/common/crypto/bcrypt.constants';
 import { OtpConfig } from '@/core/config/configuration';
 import { Otp, OtpPurpose } from './otp.entity';
+import {
+  UserListKey,
+  UserListQuery,
+  UserListResult,
+  UserListSort,
+} from './users.types';
 
 const OTP_LENGTH = 6;
+
+const LIST_SORT_COLUMNS: Record<
+  UserListSort,
+  {
+    property: keyof User;
+    column: string;
+    timestamp: boolean;
+    nullable: boolean;
+  }
+> = {
+  created_at: {
+    property: 'createdAt',
+    column: 'created_at',
+    timestamp: true,
+    nullable: false,
+  },
+  last_login: {
+    property: 'lastLoginAt',
+    column: 'last_login_at',
+    timestamp: true,
+    nullable: true,
+  },
+  email: {
+    property: 'email',
+    column: 'email',
+    timestamp: false,
+    nullable: false,
+  },
+};
+
+const LIST_SORT_VALUE_ALIAS = 'list_sort_value';
 
 export interface IssuedOtp {
   id: string;
@@ -69,6 +107,105 @@ export class UsersService {
 
   async getUserById(id: string) {
     return this.userRepository.findOne({ where: { id } });
+  }
+
+  async findPage(query: UserListQuery): Promise<UserListResult<User>> {
+    if (query.status === 'deleted') {
+      return { items: [], nextKey: null };
+    }
+
+    const sort = LIST_SORT_COLUMNS[query.sort];
+    const column = `"user"."${sort.column}"`;
+    const direction = query.order === 'asc' ? 'ASC' : 'DESC';
+    const comparator = query.order === 'asc' ? '>' : '<';
+    const sortValue = sort.timestamp
+      ? `to_char(${column} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
+      : column;
+
+    const qb = this.userRepository
+      .createQueryBuilder('user')
+      .addSelect(sortValue, LIST_SORT_VALUE_ALIAS)
+      .orderBy(
+        `user.${sort.property}`,
+        direction,
+        sort.nullable ? 'NULLS LAST' : undefined,
+      )
+      .addOrderBy('user.id', direction)
+      .limit(query.limit + 1);
+
+    if (query.status === 'blocked') {
+      qb.andWhere('"user"."locked_until" > now()');
+    } else if (query.status === 'active') {
+      qb.andWhere(
+        '("user"."locked_until" IS NULL OR "user"."locked_until" <= now())',
+      );
+    }
+
+    const search = query.q?.trim();
+
+    if (search) {
+      const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`;
+
+      qb.andWhere(
+        new Brackets((where) => {
+          where
+            .where('"user"."email" ILIKE :pattern', { pattern })
+            .orWhere('"user"."first_name" ILIKE :pattern', { pattern })
+            .orWhere('"user"."last_name" ILIKE :pattern', { pattern });
+
+          if (isUUID(search)) {
+            where.orWhere('"user"."id" = :searchId', { searchId: search });
+          }
+        }),
+      );
+    }
+
+    if (query.after) {
+      this.applyKeyset(qb, column, comparator, sort.nullable, query.after);
+    }
+
+    const { entities, raw } =
+      await qb.getRawAndEntities<Record<string, string | null>>();
+    const hasMore = entities.length > query.limit;
+    const items = hasMore ? entities.slice(0, query.limit) : entities;
+    const last = items.at(-1);
+
+    if (!hasMore || !last) {
+      return { items, nextKey: null };
+    }
+
+    const lastRaw = raw.find((row) => row.user_id === last.id);
+
+    return {
+      items,
+      nextKey: { value: lastRaw?.[LIST_SORT_VALUE_ALIAS] ?? null, id: last.id },
+    };
+  }
+
+  private applyKeyset(
+    qb: ReturnType<Repository<User>['createQueryBuilder']>,
+    column: string,
+    comparator: '<' | '>',
+    nullable: boolean,
+    after: UserListKey,
+  ): void {
+    const params = { afterValue: after.value, afterId: after.id };
+
+    if (after.value === null) {
+      qb.andWhere(
+        `${column} IS NULL AND "user"."id" ${comparator} :afterId`,
+        params,
+      );
+
+      return;
+    }
+
+    qb.andWhere(
+      `(${column} ${comparator} :afterValue OR (${column} = :afterValue AND "user"."id" ${comparator} :afterId)${
+        nullable ? ` OR ${column} IS NULL` : ''
+      })`,
+      params,
+    );
   }
 
   async update(id: string, changes: Partial<User>): Promise<void> {

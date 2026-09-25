@@ -44,3 +44,10 @@ export interface UserDeleted {
 export type DeletionResult = DeletionChallenge | UserDeleted;
 
 export type AvatarFormat = 'jpg' | 'png' | 'webp' | 'gif';
+
+export type UserListItem = AdminUserProfile;
+
+export interface UserListPage {
+  items: UserListItem[];
+  nextCursor: string | null;
+}
