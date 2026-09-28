@@ -8,6 +8,7 @@ import { UsersModule } from '../../modules/users/users.module';
 import { AuthModule } from '../../modules/auth/auth.module';
 import { RbacModule } from '../../modules/rbac/rbac.module';
 import { UserProfileModule } from '../../modules/user-profile/user-profile.module';
+import { ConversionModule } from '../../modules/conversion/conversion.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { UserProfileModule } from '../../modules/user-profile/user-profile.modul
     AuthModule,
     RbacModule,
     UserProfileModule,
+    ConversionModule,
   ],
 })
 export class AppModule {}

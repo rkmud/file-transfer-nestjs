@@ -29,6 +29,7 @@ lerna-debug.log*
 # docker volumes / local data
 /data
 /uploads
+/storage
 
 # editors
 .idea
@@ -42,3 +43,6 @@ lerna-debug.log*
 Thumbs.db
 
 /task
+test-data/conversion/out/
+test-data/conversion/.cookies.txt
+test-data/conversion/invalid/oversized.yaml
