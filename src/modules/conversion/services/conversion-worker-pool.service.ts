@@ -1,51 +1,36 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { resolve } from 'path';
-import { Piscina } from 'piscina';
 import { ConversionConfig } from '@/core/config/configuration';
 import {
   ConversionTask,
   ConversionTaskResult,
 } from '../worker/conversion.task';
+import { isWorkerOutOfMemory, WorkerPool } from './worker-pool';
 
-export class ConversionTimeoutError extends Error {
-  constructor() {
-    super('Conversion timed out');
-    this.name = ConversionTimeoutError.name;
-  }
-}
+export { ConversionTimeoutError } from './worker-pool';
 
 @Injectable()
-export class ConversionWorkerPool implements OnModuleDestroy {
-  private readonly pool: Piscina<ConversionTask, ConversionTaskResult>;
-  private readonly timeoutMs: number;
-
+export class ConversionWorkerPool extends WorkerPool<
+  ConversionTask,
+  ConversionTaskResult
+> {
   constructor(configService: ConfigService) {
     const config = configService.getOrThrow<ConversionConfig>('conversion');
 
-    this.timeoutMs = config.timeoutMs;
-    this.pool = new Piscina({
+    super({
       filename: resolve(__dirname, '../worker/conversion.worker.js'),
-      minThreads: 1,
       maxThreads: config.workerThreads,
-      idleTimeout: 60_000,
-      resourceLimits: { maxOldGenerationSizeMb: config.workerMaxHeapMb },
+      maxHeapMb: config.workerMaxHeapMb,
+      timeoutMs: config.timeoutMs,
     });
   }
 
   async run(task: ConversionTask): Promise<ConversionTaskResult> {
     try {
-      return await this.pool.run(task, {
-        signal: AbortSignal.timeout(this.timeoutMs),
-      });
+      return await this.execute(task);
     } catch (error) {
-      if ((error as Error).name === 'AbortError') {
-        throw new ConversionTimeoutError();
-      }
-
-      if (
-        (error as NodeJS.ErrnoException).code === 'ERR_WORKER_OUT_OF_MEMORY'
-      ) {
+      if (isWorkerOutOfMemory(error)) {
         return {
           ok: false,
           code: 'LIMIT_EXCEEDED',
@@ -55,9 +40,5 @@ export class ConversionWorkerPool implements OnModuleDestroy {
 
       throw error;
     }
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    await this.pool.destroy();
   }
 }
