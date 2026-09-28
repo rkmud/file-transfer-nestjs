@@ -68,6 +68,16 @@ export interface ConversionConfig {
   workerMaxHeapMb: number;
 }
 
+export interface ImageConversionConfig {
+  maxSizes: Record<string, number>;
+  maxRasterWidth: number;
+  maxRasterHeight: number;
+  maxInputPixels: number;
+  timeoutMs: number;
+  workerThreads: number;
+  workerMaxHeapMb: number;
+}
+
 export interface AppConfig {
   nodeEnv: string;
   port: number;
@@ -89,9 +99,13 @@ export interface AppConfig {
   swagger: SwaggerConfig;
   uploads: UploadsConfig;
   conversion: ConversionConfig;
+  imageConversion: ImageConversionConfig;
 }
 
 const MB = 1024 * 1024;
+
+const defaultWorkerThreads = (): number =>
+  Math.min(4, Math.max(1, availableParallelism() - 1));
 
 const parseIntEnv = (name: string, fallback: number): number => {
   const raw = process.env[name];
@@ -176,9 +190,22 @@ export default (): AppConfig => ({
     maxYamlAliases: parseIntEnv('CONVERSION_MAX_YAML_ALIASES', 100),
     workerThreads: parseIntEnv(
       'CONVERSION_WORKER_THREADS',
-      Math.min(4, Math.max(1, availableParallelism() - 1)),
+      defaultWorkerThreads(),
     ),
     workerMaxHeapMb: parseIntEnv('CONVERSION_WORKER_MAX_HEAP_MB', 512),
+  },
+  imageConversion: {
+    maxSizes: {
+      png: parseIntEnv('PNG_MAX_SIZE', 20 * MB),
+      jpeg: parseIntEnv('JPEG_MAX_SIZE', 20 * MB),
+      svg: parseIntEnv('SVG_MAX_SIZE', 10 * MB),
+    },
+    maxRasterWidth: parseIntEnv('MAX_RASTER_WIDTH', 4096),
+    maxRasterHeight: parseIntEnv('MAX_RASTER_HEIGHT', 4096),
+    maxInputPixels: parseIntEnv('IMAGE_MAX_INPUT_PIXELS', 50_000_000),
+    timeoutMs: parseIntEnv('IMAGE_CONVERSION_TIMEOUT_MS', 30_000),
+    workerThreads: parseIntEnv('IMAGE_WORKER_THREADS', defaultWorkerThreads()),
+    workerMaxHeapMb: parseIntEnv('IMAGE_WORKER_MAX_HEAP_MB', 512),
   },
   otp: {
     ttlSeconds: parseInt(process.env.OTP_TTL_SECONDS ?? '600', 10),

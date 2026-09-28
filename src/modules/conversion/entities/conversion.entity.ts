@@ -79,6 +79,9 @@ export class Conversion {
   @Column({ name: 'error_code', type: 'integer', nullable: true })
   errorCode!: number | null;
 
+  @Column({ name: 'error_reason', type: 'varchar', length: 64, nullable: true })
+  errorReason!: string | null;
+
   @Column({ name: 'duration_ms', type: 'integer', nullable: true })
   durationMs!: number | null;
 

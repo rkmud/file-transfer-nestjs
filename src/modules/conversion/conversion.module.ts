@@ -6,7 +6,10 @@ import { randomUUID } from 'crypto';
 import { mkdir } from 'fs/promises';
 import { diskStorage } from 'multer';
 import { AuthTokenModule } from '@/common/auth-token/auth-token.module';
-import { ConversionConfig } from '@/core/config/configuration';
+import {
+  ConversionConfig,
+  ImageConversionConfig,
+} from '@/core/config/configuration';
 import { UsersModule } from '@/modules/users/users.module';
 import { ConversionController } from './conversion.controller';
 import { Conversion } from './entities/conversion.entity';
@@ -15,12 +18,22 @@ import {
   FormatRegistry,
 } from './formats/format-registry';
 import {
+  createImageFormatRegistry,
+  ImageFormatRegistry,
+} from './images/image-format-registry';
+import { ImageConversionController } from './image-conversion.controller';
+import {
   ConversionStorage,
   LocalConversionStorage,
   resolveIncomingDirectory,
 } from './services/conversion-storage.service';
 import { ConversionWorkerPool } from './services/conversion-worker-pool.service';
 import { ConversionService } from './services/conversion.service';
+import {
+  ImageConversionService,
+  SharpImageConversionService,
+} from './services/image-conversion.service';
+import { ImageWorkerPool } from './services/image-worker-pool.service';
 import { TextConversionService } from './services/text-conversion.service';
 
 @Module({
@@ -32,8 +45,13 @@ import { TextConversionService } from './services/text-conversion.service';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const conversion = config.getOrThrow<ConversionConfig>('conversion');
+        const images =
+          config.getOrThrow<ImageConversionConfig>('imageConversion');
         const directory = resolveIncomingDirectory(conversion);
-        const { maxSizes } = conversion;
+        const maxSizes = [
+          ...Object.values(conversion.maxSizes),
+          ...Object.values(images.maxSizes),
+        ];
 
         return {
           storage: diskStorage({
@@ -47,21 +65,24 @@ import { TextConversionService } from './services/text-conversion.service';
               callback(null, randomUUID()),
           }),
           limits: {
-            fileSize: Math.max(...Object.values(maxSizes)),
+            fileSize: Math.max(...maxSizes),
             files: 1,
-            fields: 5,
+            fields: 8,
             fieldSize: 1024,
           },
         };
       },
     }),
   ],
-  controllers: [ConversionController],
+  controllers: [ConversionController, ImageConversionController],
   providers: [
     { provide: FormatRegistry, useFactory: createFormatRegistry },
     { provide: ConversionStorage, useClass: LocalConversionStorage },
     { provide: ConversionService, useClass: TextConversionService },
     ConversionWorkerPool,
+    { provide: ImageFormatRegistry, useFactory: createImageFormatRegistry },
+    { provide: ImageConversionService, useClass: SharpImageConversionService },
+    ImageWorkerPool,
   ],
 })
 export class ConversionModule {}

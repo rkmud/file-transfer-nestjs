@@ -166,6 +166,10 @@ export class TextConversionService extends ConversionService {
 
       await this.storage.remove(output?.tempPath);
 
+      if (error instanceof ConversionTimeoutError) {
+        this.storage.removeLingering(output?.tempPath);
+      }
+
       if (!inputPath) {
         await this.storage.remove(file.path);
       }

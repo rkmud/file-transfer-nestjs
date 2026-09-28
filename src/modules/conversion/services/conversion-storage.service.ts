@@ -3,9 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { createReadStream, ReadStream } from 'fs';
 import { mkdir, open, rename, unlink } from 'fs/promises';
 import { dirname, join, relative, resolve, sep } from 'path';
+import { setTimeout as sleep } from 'timers/promises';
 import { ConversionConfig } from '@/core/config/configuration';
 import {
   CONVERSION_INCOMING_SUBDIR,
+  CONVERSION_LINGERING_CLEANUP_DELAYS_MS,
   CONVERSION_INPUTS_SUBDIR,
   CONVERSION_OUTPUTS_SUBDIR,
   CONVERSION_PARTIAL_SUFFIX,
@@ -36,6 +38,7 @@ export abstract class ConversionStorage {
   ): Promise<OutputTarget>;
   abstract commitOutput(target: OutputTarget): Promise<void>;
   abstract remove(path: string | undefined): Promise<void>;
+  abstract removeLingering(path: string | undefined): Promise<void>;
   abstract openRead(path: string): ReadStream;
   abstract toRelative(path: string): string;
 }
@@ -114,6 +117,15 @@ export class LocalConversionStorage extends ConversionStorage {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         this.logger.warn(`Failed to remove ${this.toRelative(path)}`);
       }
+    }
+  }
+
+  async removeLingering(path: string | undefined): Promise<void> {
+    if (!path) return;
+
+    for (const delay of CONVERSION_LINGERING_CLEANUP_DELAYS_MS) {
+      await sleep(delay);
+      await this.remove(path);
     }
   }
 
