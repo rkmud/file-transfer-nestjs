@@ -1,4 +1,5 @@
 import ms from 'ms';
+import { availableParallelism } from 'os';
 
 export interface DatabaseConfig {
   host: string;
@@ -56,6 +57,17 @@ export interface UploadsConfig {
   avatarMaxBytes: number;
 }
 
+export interface ConversionConfig {
+  storageDir: string;
+  maxSizes: Record<string, number>;
+  timeoutMs: number;
+  maxDepth: number;
+  maxNodes: number;
+  maxYamlAliases: number;
+  workerThreads: number;
+  workerMaxHeapMb: number;
+}
+
 export interface AppConfig {
   nodeEnv: string;
   port: number;
@@ -76,7 +88,26 @@ export interface AppConfig {
   rbac: RbacConfigOptions;
   swagger: SwaggerConfig;
   uploads: UploadsConfig;
+  conversion: ConversionConfig;
 }
+
+const MB = 1024 * 1024;
+
+const parseIntEnv = (name: string, fallback: number): number => {
+  const raw = process.env[name];
+
+  if (raw === undefined || raw.trim() === '') {
+    return fallback;
+  }
+
+  const value = Number(raw);
+
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer, got "${raw}"`);
+  }
+
+  return value;
+};
 
 export default (): AppConfig => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
@@ -130,6 +161,24 @@ export default (): AppConfig => ({
       process.env.AVATAR_MAX_BYTES ?? String(5 * 1024 * 1024),
       10,
     ),
+  },
+  conversion: {
+    storageDir: process.env.CONVERSION_STORAGE_DIR ?? 'storage/conversions',
+    maxSizes: {
+      csv: parseIntEnv('CSV_MAX_SIZE', 10 * MB),
+      json: parseIntEnv('JSON_MAX_SIZE', 10 * MB),
+      xml: parseIntEnv('XML_MAX_SIZE', 10 * MB),
+      yaml: parseIntEnv('YAML_MAX_SIZE', 5 * MB),
+    },
+    timeoutMs: parseIntEnv('CONVERSION_TIMEOUT_MS', 30_000),
+    maxDepth: parseIntEnv('CONVERSION_MAX_DEPTH', 100),
+    maxNodes: parseIntEnv('CONVERSION_MAX_NODES', 1_000_000),
+    maxYamlAliases: parseIntEnv('CONVERSION_MAX_YAML_ALIASES', 100),
+    workerThreads: parseIntEnv(
+      'CONVERSION_WORKER_THREADS',
+      Math.min(4, Math.max(1, availableParallelism() - 1)),
+    ),
+    workerMaxHeapMb: parseIntEnv('CONVERSION_WORKER_MAX_HEAP_MB', 512),
   },
   otp: {
     ttlSeconds: parseInt(process.env.OTP_TTL_SECONDS ?? '600', 10),
