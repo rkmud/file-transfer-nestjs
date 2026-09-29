@@ -12,10 +12,6 @@ const extractId = (result: unknown): string | undefined =>
 export class RbacAuditService {
   private readonly logger = new Logger('RbacAudit');
 
-  /**
-   * Runs a mutation and records its outcome, so that both applied changes and
-   * rejections (403/404/409) end up in the audit log.
-   */
   async track<T>(
     context: RbacAuditContext,
     successStatus: HttpStatus,

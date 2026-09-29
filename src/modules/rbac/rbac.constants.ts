@@ -4,10 +4,6 @@ export const RBAC_ACTION_SEPARATOR = '@';
 export const RBAC_NAME_MAX_LENGTH = 100;
 export const RBAC_DESCRIPTION_MAX_LENGTH = 255;
 
-/**
- * Names of permissions, roles and actions are used as identifiers in
- * `resource@action` strings, so the action separator is not allowed inside them.
- */
 export const RBAC_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/;
 
 export const RBAC_ADMIN_ROLE = 'admin';

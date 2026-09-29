@@ -173,10 +173,6 @@ export class RbacGrantsService {
     }
   }
 
-  /**
-   * An empty action list means "every action of the permission", which is
-   * stored as NULL; otherwise the actions must be declared by the permission.
-   */
   private resolveActions(
     permission: Permission,
     actions?: string[],

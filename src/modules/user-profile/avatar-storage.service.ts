@@ -25,10 +25,6 @@ const startsWith = (buffer: Buffer, bytes: number[], offset = 0): boolean =>
 const ascii = (text: string): number[] =>
   [...text].map((char) => char.charCodeAt(0));
 
-/**
- * The client-supplied mime type is trivially spoofed, so the actual format is
- * taken from the file signature.
- */
 const detectFormat = (buffer: Buffer): AvatarFormat | null => {
   if (startsWith(buffer, [0xff, 0xd8, 0xff])) return 'jpg';
   if (startsWith(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
@@ -56,7 +52,6 @@ export class AvatarStorageService {
 
   constructor(private configService: ConfigService) {}
 
-  /** Throws 413/415 for files that must not be stored. */
   validate(file: Express.Multer.File): AvatarFormat {
     if (file.size > this.getConfig().avatarMaxBytes) {
       throw new PayloadTooLargeException('Avatar image exceeds the size limit');
@@ -74,7 +69,6 @@ export class AvatarStorageService {
     return detected;
   }
 
-  /** Writes the file and returns the relative public path stored in the DB. */
   async save(file: Express.Multer.File, format: AvatarFormat): Promise<string> {
     const fileName = `${randomUUID()}.${format}`;
     const directory = this.getDirectory();
@@ -85,7 +79,6 @@ export class AvatarStorageService {
     return posix.join(this.getConfig().publicPrefix, AVATARS_SUBDIR, fileName);
   }
 
-  /** Best-effort removal of a previously stored avatar. */
   async remove(publicPath: string | null): Promise<void> {
     const prefix = posix.join(this.getConfig().publicPrefix, AVATARS_SUBDIR);
 

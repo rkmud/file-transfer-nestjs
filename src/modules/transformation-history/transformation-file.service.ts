@@ -43,11 +43,6 @@ export class TransformationFileService {
     private configService: ConfigService,
   ) {}
 
-  /**
-   * Saves a finished transformation's output for later download. Meant to be
-   * fired without awaiting after the response has been handed off, and never
-   * throws: a storage failure is only recorded on the history row.
-   */
   async persist(input: TransformationOutputInput): Promise<void> {
     const key = this.buildKey(input);
     const startedAt = Date.now();
@@ -68,7 +63,6 @@ export class TransformationFileService {
       );
 
       if (!affected) {
-        // Without a history row the file could never be downloaded or purged.
         await this.storage.delete(key);
         this.logger.error(
           `Stored transformation output discarded, history record missing: transformationId=${input.id}`,
