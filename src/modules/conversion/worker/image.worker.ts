@@ -4,7 +4,6 @@ import { ImageConversionError } from '../images/image-conversion-error';
 import { createImageFormatRegistry } from '../images/image-format-registry';
 import { ImageTask, ImageTaskResult } from './image.task';
 
-// Parallelism comes from the Piscina pool; keep libvips to one thread each.
 sharp.concurrency(1);
 sharp.cache(false);
 
@@ -39,7 +38,6 @@ export default async function convertImage(
       return { ok: false, code: error.code, message: error.message };
     }
 
-    // System errors (I/O) are ours; anything else is the decoder rejecting input.
     if (!(error instanceof Error) || 'code' in error) {
       return {
         ok: false,

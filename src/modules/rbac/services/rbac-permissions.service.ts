@@ -130,10 +130,6 @@ export class RbacPermissionsService {
     }
   }
 
-  /**
-   * Narrowing the action list would leave grants pointing at actions the
-   * permission no longer declares, which silently revokes access.
-   */
   private async ensureActionsStayGranted(
     permission: Permission,
     actions: string[],
