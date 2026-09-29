@@ -120,6 +120,16 @@ const MB = 1024 * 1024;
 const defaultWorkerThreads = (): number =>
   Math.min(4, Math.max(1, availableParallelism() - 1));
 
+const requireEnv = (name: string): string => {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    throw new Error(`${name} must be set to a non-empty value`);
+  }
+
+  return value;
+};
+
 const parseIntEnv = (name: string, fallback: number): number => {
   const raw = process.env[name];
 
@@ -169,7 +179,7 @@ export default (): AppConfig => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: parseInt(process.env.PORT ?? '3000', 10),
   appUrl: process.env.APP_URL ?? 'http://localhost:3001',
-  jwtSecret: process.env.JWT_SECRET ?? '',
+  jwtSecret: requireEnv('JWT_SECRET'),
   jwtIssuer: process.env.JWT_ISSUER ?? 'file-transfer-api',
   jwtAudience: process.env.JWT_AUDIENCE ?? 'file-transfer-client',
   jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',

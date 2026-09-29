@@ -102,7 +102,7 @@ Both convert endpoints accept an optional multipart `save` boolean (`@ParseBoole
 
 All runtime config goes through `src/core/config/configuration.ts` — add new env vars there (typed interface + default) rather than reading `process.env` directly in services. Feature modules should inject `ConfigService` and call `getOrThrow<XConfig>('sectionKey')` for their slice (see `LoginConfig`, `OtpConfig`, `ThrottleConfig`, `RbacConfigOptions`, `MailConfig`, `SwaggerConfig`).
 
-New env values should be parsed through the validating `parseIntEnv` helper in that file (older vars still use bare `parseInt`) — use it for new vars instead of bare `parseInt`/`=== 'true'`, so a malformed value fails at startup rather than silently becoming `NaN` and corrupting downstream logic (e.g. the login lockout threshold). `JWT_SECRET` currently defaults to an empty string in `configuration.ts` and `AuthTokenModule` reads it with `config.get()`, so a missing secret does *not* fail at boot — tokens get signed with an empty key instead. Tighten this to `getOrThrow` if you touch that area.
+New env values should be parsed through the validating `parseIntEnv` helper in that file (older vars still use bare `parseInt`) — use it for new vars instead of bare `parseInt`/`=== 'true'`, so a malformed value fails at startup rather than silently becoming `NaN` and corrupting downstream logic (e.g. the login lockout threshold). `JWT_SECRET` has no default: `configuration.ts` reads it through the `requireEnv` helper (throws on missing/empty) and `AuthTokenModule` reads it with `config.getOrThrow()`, so a missing secret fails at boot instead of signing tokens with an empty key. Use `requireEnv` for any other env var that must not have a fallback.
 
 ### Module dependency direction
 

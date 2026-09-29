@@ -11,14 +11,14 @@ import { AccessTokenGuard } from './access-token.guard';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('jwtSecret'),
+        secret: config.getOrThrow<string>('jwtSecret'),
         signOptions: {
-          issuer: config.get<string>('jwtIssuer'),
-          audience: config.get<string>('jwtAudience'),
+          issuer: config.getOrThrow<string>('jwtIssuer'),
+          audience: config.getOrThrow<string>('jwtAudience'),
         },
         verifyOptions: {
-          issuer: config.get<string>('jwtIssuer'),
-          audience: config.get<string>('jwtAudience'),
+          issuer: config.getOrThrow<string>('jwtIssuer'),
+          audience: config.getOrThrow<string>('jwtAudience'),
         },
       }),
     }),
