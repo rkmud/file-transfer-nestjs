@@ -1,6 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, TransformFnParams } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  Matches,
+  Max,
+  Min,
+} from 'class-validator';
+import { ParseBoolean } from '@/common/decorators/parse-boolean.decorator';
 import { IMAGE_FORMATS, ImageFormat } from '../images/image-format.types';
 import {
   IMAGE_DEFAULT_BACKGROUND,
@@ -76,6 +85,17 @@ export class ConvertImageDto {
   @IsOptional()
   @Matches(HEX_COLOR, { message: 'background must be a #rgb or #rrggbb color' })
   background?: string;
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    default: false,
+    description:
+      'Also save the output for later download from the transformation history, for DEFAULT_RETENTION_DAYS. Saving happens in the background and never delays or fails the response.',
+  })
+  @ParseBoolean()
+  @IsOptional()
+  @IsBoolean()
+  save?: boolean;
 }
 
 export class ConvertImageBodyDto extends ConvertImageDto {

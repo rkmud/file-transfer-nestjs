@@ -1,3 +1,4 @@
+import { validateCronExpression } from 'cron';
 import ms from 'ms';
 import { availableParallelism } from 'os';
 
@@ -78,6 +79,17 @@ export interface ImageConversionConfig {
   workerMaxHeapMb: number;
 }
 
+export const STORAGE_BACKENDS = ['LOCAL_STORAGE'] as const;
+
+export type StorageBackend = (typeof STORAGE_BACKENDS)[number];
+
+export interface TransformationStorageConfig {
+  backend: StorageBackend;
+  localDir: string;
+  retentionDays: number;
+  cleanupCron: string;
+}
+
 export interface AppConfig {
   nodeEnv: string;
   port: number;
@@ -100,6 +112,7 @@ export interface AppConfig {
   uploads: UploadsConfig;
   conversion: ConversionConfig;
   imageConversion: ImageConversionConfig;
+  transformationStorage: TransformationStorageConfig;
 }
 
 const MB = 1024 * 1024;
@@ -118,6 +131,35 @@ const parseIntEnv = (name: string, fallback: number): number => {
 
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`${name} must be a positive integer, got "${raw}"`);
+  }
+
+  return value;
+};
+
+const parseStorageBackendEnv = (
+  name: string,
+  fallback: StorageBackend,
+): StorageBackend => {
+  const raw = process.env[name]?.trim();
+
+  if (!raw) {
+    return fallback;
+  }
+
+  if (!(STORAGE_BACKENDS as readonly string[]).includes(raw)) {
+    throw new Error(
+      `${name} must be one of ${STORAGE_BACKENDS.join(', ')}, got "${raw}"`,
+    );
+  }
+
+  return raw as StorageBackend;
+};
+
+const parseCronEnv = (name: string, fallback: string): string => {
+  const value = process.env[name]?.trim() || fallback;
+
+  if (!validateCronExpression(value).valid) {
+    throw new Error(`${name} must be a valid cron expression, got "${value}"`);
   }
 
   return value;
@@ -206,6 +248,13 @@ export default (): AppConfig => ({
     timeoutMs: parseIntEnv('IMAGE_CONVERSION_TIMEOUT_MS', 30_000),
     workerThreads: parseIntEnv('IMAGE_WORKER_THREADS', defaultWorkerThreads()),
     workerMaxHeapMb: parseIntEnv('IMAGE_WORKER_MAX_HEAP_MB', 512),
+  },
+  transformationStorage: {
+    backend: parseStorageBackendEnv('STORAGE_BACKEND', 'LOCAL_STORAGE'),
+    localDir:
+      process.env.TRANSFORMATION_STORAGE_DIR ?? 'storage/transformations',
+    retentionDays: parseIntEnv('DEFAULT_RETENTION_DAYS', 90),
+    cleanupCron: parseCronEnv('CLEANUP_CRON_SCHEDULE', '0 0 * * *'),
   },
   otp: {
     ttlSeconds: parseInt(process.env.OTP_TTL_SECONDS ?? '600', 10),

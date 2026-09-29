@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import configuration, { ThrottleConfig } from '../config/configuration';
 import { DatabaseModule } from '../../database/database.module';
@@ -9,6 +10,7 @@ import { AuthModule } from '../../modules/auth/auth.module';
 import { RbacModule } from '../../modules/rbac/rbac.module';
 import { UserProfileModule } from '../../modules/user-profile/user-profile.module';
 import { ConversionModule } from '../../modules/conversion/conversion.module';
+import { TransformationHistoryModule } from '../../modules/transformation-history/transformation-history.module';
 
 @Module({
   imports: [
@@ -34,6 +36,7 @@ import { ConversionModule } from '../../modules/conversion/conversion.module';
         };
       },
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     HealthModule,
     UsersModule,
@@ -41,6 +44,7 @@ import { ConversionModule } from '../../modules/conversion/conversion.module';
     RbacModule,
     UserProfileModule,
     ConversionModule,
+    TransformationHistoryModule,
   ],
 })
 export class AppModule {}

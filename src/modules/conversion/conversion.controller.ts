@@ -83,7 +83,7 @@ export class ConversionController implements ConversionEndpoint {
   @ApiOperation({
     summary: 'Convert a text file',
     description:
-      'Converts between CSV, JSON, XML and YAML. The source format is detected from the file extension and content; per-format size limits apply. The result is streamed back as an attachment named converted.<ext>.',
+      'Converts between CSV, JSON, XML and YAML. The source format is detected from the file extension and content; per-format size limits apply. The result is streamed back as an attachment named converted.<ext>. With save=true the output is also kept for download from the transformation history until it expires.',
   })
   @ApiOkResponse({
     description: 'Converted file',
@@ -109,6 +109,7 @@ export class ConversionController implements ConversionEndpoint {
       userId: user.sub,
       file,
       targetFormat: dto.targetFormat,
+      save: dto.save,
     });
 
     return new StreamableFile(result.stream, {
