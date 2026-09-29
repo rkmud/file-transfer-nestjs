@@ -13,6 +13,8 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConversionConfig } from '@/core/config/configuration';
+import { TransformationFileService } from '@/modules/transformation-history/transformation-file.service';
+import { TransformationHistoryService } from '@/modules/transformation-history/transformation-history.service';
 import {
   CONVERSION_OUTPUT_BASENAME,
   CONVERSION_SNIFF_BYTES,
@@ -22,7 +24,7 @@ import {
   ConversionRequest,
   ConversionResult,
 } from '../conversion.types';
-import { sanitizeFileName } from '../conversion.utils';
+import { sanitizeFileName, toTransformationLog } from '../conversion.utils';
 import {
   Conversion,
   ConversionStatus,
@@ -50,6 +52,11 @@ const ERROR_STATUS: Record<ConversionErrorCode, HttpStatus> = {
   INTERNAL: HttpStatus.INTERNAL_SERVER_ERROR,
 };
 
+const HTTP_ERROR_REASON: Partial<Record<number, string>> = {
+  [HttpStatus.PAYLOAD_TOO_LARGE]: 'FILE_TOO_LARGE',
+  [HttpStatus.UNSUPPORTED_MEDIA_TYPE]: 'UNSUPPORTED_FORMAT',
+};
+
 interface OperationContext {
   record: Conversion;
   startedAt: number;
@@ -67,6 +74,8 @@ export class TextConversionService extends ConversionService {
     private storage: ConversionStorage,
     private workerPool: ConversionWorkerPool,
     private configService: ConfigService,
+    private historyService: TransformationHistoryService,
+    private fileService: TransformationFileService,
   ) {
     super();
   }
@@ -84,6 +93,7 @@ export class TextConversionService extends ConversionService {
     userId,
     file,
     targetFormat,
+    save,
   }: ConversionRequest): Promise<ConversionResult> {
     if (!file || file.size === 0) {
       await this.storage.remove(file?.path);
@@ -155,6 +165,10 @@ export class TextConversionService extends ConversionService {
         outputSize: result.outputSize,
       });
 
+      if (save) {
+        this.saveOutput(context, targetHandler.extensions[0], output.finalPath);
+      }
+
       return {
         stream: this.storage.openRead(output.finalPath),
         mimeType: `${targetHandler.mimeType}; charset=utf-8`,
@@ -176,6 +190,7 @@ export class TextConversionService extends ConversionService {
 
       await this.complete(context, ConversionStatus.Error, {
         errorCode: exception.getStatus(),
+        errorReason: this.toErrorReason(error, exception),
       });
 
       throw exception;
@@ -241,6 +256,18 @@ export class TextConversionService extends ConversionService {
     return new InternalServerErrorException('Conversion failed');
   }
 
+  private toErrorReason(error: unknown, exception: HttpException): string {
+    if (error instanceof ConversionTimeoutError) {
+      return 'TIMEOUT';
+    }
+
+    if (error instanceof ConversionError) {
+      return error.code;
+    }
+
+    return HTTP_ERROR_REASON[exception.getStatus()] ?? 'INTERNAL';
+  }
+
   private async complete(
     { record, startedAt, sourceFormat }: OperationContext,
     status: ConversionStatus,
@@ -271,6 +298,23 @@ export class TextConversionService extends ConversionService {
         `Failed to record conversion history: conversionId=${record.id}`,
       );
     }
+
+    await this.historyService.record(toTransformationLog(record));
+  }
+
+  private saveOutput(
+    { record }: OperationContext,
+    extension: string,
+    outputPath: string,
+  ): void {
+    void this.fileService.persist({
+      id: record.id,
+      userId: record.userId,
+      targetFormat: record.outputFormat,
+      extension,
+      createdAt: record.createdAt,
+      open: () => this.storage.openRead(outputPath),
+    });
   }
 
   private getParseLimits() {

@@ -10,6 +10,7 @@ import {
   ConversionConfig,
   ImageConversionConfig,
 } from '@/core/config/configuration';
+import { TransformationHistoryModule } from '@/modules/transformation-history/transformation-history.module';
 import { UsersModule } from '@/modules/users/users.module';
 import { ConversionController } from './conversion.controller';
 import { Conversion } from './entities/conversion.entity';
@@ -40,6 +41,7 @@ import { TextConversionService } from './services/text-conversion.service';
   imports: [
     UsersModule,
     AuthTokenModule,
+    TransformationHistoryModule,
     TypeOrmModule.forFeature([Conversion]),
     MulterModule.registerAsync({
       inject: [ConfigService],

@@ -78,7 +78,7 @@ export class ImageConversionController implements ImageConversionEndpoint {
   @ApiOperation({
     summary: 'Convert an image',
     description:
-      'Converts PNG ↔ JPEG and rasterizes SVG to PNG/JPEG. The source format is detected from the file signature and checked against the extension and MIME type; per-format size limits apply. Vectorization (PNG/JPEG → SVG) is not supported. The result is streamed back as an attachment named converted.<ext>.',
+      'Converts PNG ↔ JPEG and rasterizes SVG to PNG/JPEG. The source format is detected from the file signature and checked against the extension and MIME type; per-format size limits apply. Vectorization (PNG/JPEG → SVG) is not supported. The result is streamed back as an attachment named converted.<ext>. With save=true the output is also kept for download from the transformation history until it expires.',
   })
   @ApiOkResponse({
     description: 'Converted image',

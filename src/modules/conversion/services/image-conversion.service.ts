@@ -9,6 +9,8 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ImageConversionConfig } from '@/core/config/configuration';
+import { TransformationFileService } from '@/modules/transformation-history/transformation-file.service';
+import { TransformationHistoryService } from '@/modules/transformation-history/transformation-history.service';
 import {
   CONVERSION_OUTPUT_BASENAME,
   IMAGE_DEFAULT_BACKGROUND,
@@ -20,7 +22,7 @@ import {
   ImageConversionDirections,
   ImageConversionRequest,
 } from '../conversion.types';
-import { sanitizeFileName } from '../conversion.utils';
+import { sanitizeFileName, toTransformationLog } from '../conversion.utils';
 import {
   Conversion,
   ConversionStatus,
@@ -76,6 +78,8 @@ export class SharpImageConversionService extends ImageConversionService {
     private storage: ConversionStorage,
     private workerPool: ImageWorkerPool,
     private configService: ConfigService,
+    private historyService: TransformationHistoryService,
+    private fileService: TransformationFileService,
   ) {
     super();
   }
@@ -88,7 +92,7 @@ export class SharpImageConversionService extends ImageConversionService {
   }
 
   async convert(request: ImageConversionRequest): Promise<ConversionResult> {
-    const { userId, file, targetFormat } = request;
+    const { userId, file, targetFormat, save } = request;
 
     if (!file || file.size === 0) {
       await this.storage.remove(file?.path);
@@ -163,6 +167,10 @@ export class SharpImageConversionService extends ImageConversionService {
         outputSize: result.outputSize,
       });
 
+      if (save) {
+        this.saveOutput(context, target.extensions[0], output.finalPath);
+      }
+
       return {
         stream: this.storage.openRead(output.finalPath),
         mimeType: target.mimeType,
@@ -175,7 +183,6 @@ export class SharpImageConversionService extends ImageConversionService {
       await this.storage.remove(output?.tempPath);
 
       if (reason === 'TIMEOUT') {
-        // The abandoned worker can still finish writing after the delete above.
         void this.storage.removeLingering(output?.tempPath);
       }
 
@@ -319,6 +326,24 @@ export class SharpImageConversionService extends ImageConversionService {
         `Failed to record conversion history: conversionId=${record.id}`,
       );
     }
+
+    await this.historyService.record(toTransformationLog(record));
+  }
+
+  /** Fire-and-forget: storage I/O must not hold up the response. */
+  private saveOutput(
+    { record }: OperationContext,
+    extension: string,
+    outputPath: string,
+  ): void {
+    void this.fileService.persist({
+      id: record.id,
+      userId: record.userId,
+      targetFormat: record.outputFormat,
+      extension,
+      createdAt: record.createdAt,
+      open: () => this.storage.openRead(outputPath),
+    });
   }
 
   private getLimits(): ImageLimits {

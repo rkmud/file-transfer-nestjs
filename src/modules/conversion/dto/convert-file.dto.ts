@@ -1,5 +1,12 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsBoolean,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+import { ParseBoolean } from '@/common/decorators/parse-boolean.decorator';
 import { TEXT_FORMATS } from '../formats/format.types';
 
 export class ConvertFileDto {
@@ -8,6 +15,17 @@ export class ConvertFileDto {
   @IsNotEmpty()
   @IsString()
   targetFormat!: string;
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    default: false,
+    description:
+      'Also save the output for later download from the transformation history, for DEFAULT_RETENTION_DAYS. Saving happens in the background and never delays or fails the response.',
+  })
+  @ParseBoolean()
+  @IsOptional()
+  @IsBoolean()
+  save?: boolean;
 }
 
 export class ConvertFileBodyDto extends ConvertFileDto {

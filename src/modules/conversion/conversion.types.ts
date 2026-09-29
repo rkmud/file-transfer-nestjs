@@ -11,6 +11,7 @@ export interface ConversionRequest {
   userId: string;
   file: Express.Multer.File | undefined;
   targetFormat: string;
+  save?: boolean;
 }
 
 export interface ConversionResult {
@@ -33,4 +34,5 @@ export interface ImageConversionRequest {
   width?: number;
   height?: number;
   background?: string;
+  save?: boolean;
 }
