@@ -1,6 +1,34 @@
 import { ConversionError } from './conversion-error';
 import { TextFormatHandler } from './format-handler';
 import { FormatMatch } from './format.types';
+import { readJsonArray } from './json-stream';
+import { RecordWriter } from './record-stream';
+
+const EMPTY_ARRAY = '[]\n';
+
+const INDENT = '  ';
+
+const indentBlock = (text: string): string =>
+  text
+    .split('\n')
+    .map((line) => `${INDENT}${line}`)
+    .join('\n');
+
+class JsonRecordWriter implements RecordWriter {
+  private wrote = false;
+
+  write(record: unknown): string {
+    const separator = this.wrote ? ',\n' : '[\n';
+
+    this.wrote = true;
+
+    return `${separator}${indentBlock(JSON.stringify(record ?? null, null, 2))}`;
+  }
+
+  end(): string {
+    return this.wrote ? '\n]\n' : EMPTY_ARRAY;
+  }
+}
 
 export class JsonFormatHandler extends TextFormatHandler {
   readonly format = 'json';
@@ -29,6 +57,18 @@ export class JsonFormatHandler extends TextFormatHandler {
           : 'Invalid JSON syntax',
       );
     }
+  }
+
+  canStream(head: string): boolean {
+    return head.startsWith('[');
+  }
+
+  readRecords(text: AsyncIterable<string>): AsyncIterable<unknown> {
+    return readJsonArray(text);
+  }
+
+  createWriter(): RecordWriter {
+    return new JsonRecordWriter();
   }
 
   serialize(data: unknown): string {

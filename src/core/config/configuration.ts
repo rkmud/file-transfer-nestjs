@@ -61,6 +61,7 @@ export interface UploadsConfig {
 export interface ConversionConfig {
   storageDir: string;
   maxSizes: Record<string, number>;
+  streamThresholdBytes: number;
   timeoutMs: number;
   maxDepth: number;
   maxNodes: number;
@@ -236,6 +237,7 @@ export default (): AppConfig => ({
       xml: parseIntEnv('XML_MAX_SIZE', 10 * MB),
       yaml: parseIntEnv('YAML_MAX_SIZE', 5 * MB),
     },
+    streamThresholdBytes: parseIntEnv('CONVERSION_STREAM_THRESHOLD_BYTES', MB),
     timeoutMs: parseIntEnv('CONVERSION_TIMEOUT_MS', 30_000),
     maxDepth: parseIntEnv('CONVERSION_MAX_DEPTH', 100),
     maxNodes: parseIntEnv('CONVERSION_MAX_NODES', 1_000_000),
