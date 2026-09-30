@@ -7,7 +7,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { MailService } from '@/mail/mail.service';
+import { MailService } from '@/common/mail/mail.service';
 import { RbacService } from '@/modules/rbac/rbac.service';
 import { isUniqueViolation } from '@/modules/rbac/rbac.utils';
 import { OtpPurpose } from '@/modules/users/otp.entity';

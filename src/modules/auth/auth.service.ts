@@ -16,7 +16,7 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { SALT_ROUNDS } from '@/common/crypto/bcrypt.constants';
 import { LoginConfig } from '@/core/config/configuration';
-import { MailService } from '@/mail/mail.service';
+import { MailService } from '@/common/mail/mail.service';
 import { RBAC_USER_ROLE } from '@/modules/rbac/rbac.constants';
 import { RbacRolesService } from '@/modules/rbac/services/rbac-roles.service';
 import { RbacUserRolesService } from '@/modules/rbac/services/rbac-user-roles.service';

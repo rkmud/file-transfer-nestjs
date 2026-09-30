@@ -26,7 +26,7 @@ import { MailService } from './mail.service';
             from: mail.from,
           },
           template: {
-            dir: join(__dirname, '../core/templates'),
+            dir: join(__dirname, '../../core/templates'),
             adapter: new HandlebarsAdapter(),
             options: { strict: true },
           },

@@ -148,10 +148,12 @@ export class TextConversionService extends ConversionService {
 
       const result = await this.workerPool.run({
         inputPath,
+        inputSize: file.size,
         outputPath: output.tempPath,
         sourceFormat: source.format,
         targetFormat: target,
         limits: this.getParseLimits(),
+        streamThresholdBytes: this.getConfig().streamThresholdBytes,
       });
 
       this.assertSucceeded(result);

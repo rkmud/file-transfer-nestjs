@@ -2,8 +2,31 @@ import { parseAllDocuments, stringify } from 'yaml';
 import { ConversionError } from './conversion-error';
 import { TextFormatHandler } from './format-handler';
 import { FormatMatch, ParseLimits } from './format.types';
+import { RecordWriter } from './record-stream';
 
 const YAML_VERSION = '1.2';
+
+const STRINGIFY_OPTIONS = {
+  version: YAML_VERSION,
+  aliasDuplicateObjects: false,
+  lineWidth: 0,
+} as const;
+
+const EMPTY_SEQUENCE = '[]\n';
+
+class YamlRecordWriter implements RecordWriter {
+  private wrote = false;
+
+  write(record: unknown): string {
+    this.wrote = true;
+
+    return stringify([record ?? null], STRINGIFY_OPTIONS);
+  }
+
+  end(): string {
+    return this.wrote ? '' : EMPTY_SEQUENCE;
+  }
+}
 
 export class YamlFormatHandler extends TextFormatHandler {
   readonly format = 'yaml';
@@ -65,11 +88,11 @@ export class YamlFormatHandler extends TextFormatHandler {
     return values.length === 1 ? values[0] : values;
   }
 
+  createWriter(): RecordWriter {
+    return new YamlRecordWriter();
+  }
+
   serialize(data: unknown): string {
-    return stringify(data ?? null, {
-      version: YAML_VERSION,
-      aliasDuplicateObjects: false,
-      lineWidth: 0,
-    });
+    return stringify(data ?? null, STRINGIFY_OPTIONS);
   }
 }

@@ -2,7 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
-import configuration, { ThrottleConfig } from '../config/configuration';
+import configuration from '../config/configuration';
+import { createThrottlerOptions } from './throttler.options';
 import { DatabaseModule } from '../../database/database.module';
 import { HealthModule } from '../health/health.module';
 import { UsersModule } from '../../modules/users/users.module';
@@ -21,20 +22,7 @@ import { TransformationHistoryModule } from '../../modules/transformation-histor
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        const { ttlSeconds, limit, blockSeconds } =
-          configService.getOrThrow<ThrottleConfig>('throttle');
-
-        return {
-          throttlers: [
-            {
-              ttl: ttlSeconds * 1000,
-              limit,
-              blockDuration: blockSeconds * 1000,
-            },
-          ],
-        };
-      },
+      useFactory: createThrottlerOptions,
     }),
     ScheduleModule.forRoot(),
     DatabaseModule,

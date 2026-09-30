@@ -2,6 +2,7 @@ import { XMLBuilder, XMLParser, XMLValidator } from 'fast-xml-parser';
 import { ConversionError } from './conversion-error';
 import { TextFormatHandler } from './format-handler';
 import { FormatMatch, ParseLimits } from './format.types';
+import { RecordWriter } from './record-stream';
 import { isPlainObject, PlainObject } from './structure';
 
 export const XML_ATTRIBUTE_PREFIX = '@';
@@ -11,10 +12,23 @@ export const XML_ITEM_ELEMENT = 'item';
 
 const XML_DECLARATION = '<?xml version="1.0" encoding="UTF-8"?>\n';
 
+const ROOT_OPEN = `<${XML_ROOT_ELEMENT}>\n`;
+const ROOT_CLOSE = `</${XML_ROOT_ELEMENT}>\n`;
+
 const DTD_PATTERN = /<!\s*(DOCTYPE|ENTITY)/i;
 
 // eslint-disable-next-line no-control-regex
 const INVALID_XML_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g;
+
+const XML_BUILDER = new XMLBuilder({
+  ignoreAttributes: false,
+  attributeNamePrefix: XML_ATTRIBUTE_PREFIX,
+  textNodeName: XML_TEXT_KEY,
+  format: true,
+  indentBy: '  ',
+  suppressEmptyNode: false,
+  processEntities: true,
+});
 
 const NAME_START = /^[\p{L}_]/u;
 const NAME_INVALID_CHARS = /[^\p{L}\p{N}._:-]/gu;
@@ -32,20 +46,41 @@ const toText = (value: unknown): string => {
   return String(value).replace(INVALID_XML_CHARS, '');
 };
 
+class XmlRecordWriter implements RecordWriter {
+  private wrote = false;
+
+  constructor(private readonly toNode: (value: unknown) => unknown) {}
+
+  write(record: unknown): string {
+    const prologue = this.wrote ? '' : `${XML_DECLARATION}${ROOT_OPEN}`;
+
+    this.wrote = true;
+
+    return `${prologue}${this.buildItem(record)}`;
+  }
+
+  end(): string {
+    return this.wrote
+      ? ROOT_CLOSE
+      : `${XML_DECLARATION}<${XML_ROOT_ELEMENT}></${XML_ROOT_ELEMENT}>\n`;
+  }
+
+  private buildItem(record: unknown): string {
+    const document = XML_BUILDER.build({
+      [XML_ROOT_ELEMENT]: { [XML_ITEM_ELEMENT]: this.toNode(record) },
+    }) as string;
+
+    return document.slice(
+      ROOT_OPEN.length,
+      document.length - ROOT_CLOSE.length,
+    );
+  }
+}
+
 export class XmlFormatHandler extends TextFormatHandler {
   readonly format = 'xml';
   readonly extensions = ['.xml'];
   readonly mimeType = 'application/xml';
-
-  private readonly builder = new XMLBuilder({
-    ignoreAttributes: false,
-    attributeNamePrefix: XML_ATTRIBUTE_PREFIX,
-    textNodeName: XML_TEXT_KEY,
-    format: true,
-    indentBy: '  ',
-    suppressEmptyNode: false,
-    processEntities: true,
-  });
 
   sniff(head: string): FormatMatch {
     return head.startsWith('<') ? FormatMatch.Certain : FormatMatch.No;
@@ -92,10 +127,14 @@ export class XmlFormatHandler extends TextFormatHandler {
     }
   }
 
+  createWriter(): RecordWriter {
+    return new XmlRecordWriter((value) => this.toNode(value));
+  }
+
   serialize(data: unknown): string {
     const tree = { [XML_ROOT_ELEMENT]: this.toNode(data) };
 
-    return `${XML_DECLARATION}${this.builder.build(tree) as string}`;
+    return `${XML_DECLARATION}${XML_BUILDER.build(tree) as string}`;
   }
 
   private toNode(value: unknown): unknown {

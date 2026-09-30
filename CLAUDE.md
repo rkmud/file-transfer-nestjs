@@ -22,8 +22,11 @@ npm run start:prod
 npm run lint             # eslint --fix on src/ and test/
 npm run format            # prettier --write on src/ and test/
 
-# Tests
-npm test                 # jest (rootDir: src, pattern *.spec.ts)
+# Tests (no DB / SMTP / Docker needed)
+npm test                 # unit + integration projects (jest.config.js)
+npm run test:unit        # src/**/*.spec.ts only
+npm run test:integration # test/integration/*.e2e-spec.ts only
+npm run test:cov         # both, with the 90% coverage gate (013-test-flow)
 npm run test:watch
 npx jest path/to/file.spec.ts   # run a single test file
 npx jest -t "test name"          # run tests matching a name
@@ -35,7 +38,7 @@ npm run migration:run
 npm run migration:revert
 ```
 
-There are currently no `*.spec.ts` files in the repo — `npm test` will report "no tests found" until some are added.
+The test suite follows `docs/requirements/013-test-flow.md` (see "Testing" below). `npm run test:cov` fails below 90% on statements/branches/functions/lines.
 
 Swagger UI is served at `http://localhost:3000/docs` (path/enable controlled by `SWAGGER_ENABLED`/`SWAGGER_PATH`). All routes are mounted under the global prefix `/api` (set in `main.ts`), so an endpoint decorated `@Controller('auth')` is reachable at `/api/auth/...`.
 
@@ -70,6 +73,8 @@ Custom role/permission/grant system, not a third-party library:
 `POST /convert` (multipart `file` + `targetFormat`) and `GET /convert/formats`, guarded by `AccessTokenGuard`. Converts between CSV/JSON/XML/YAML:
 
 - `formats/` is pure, Nest-free code that also runs inside worker threads (keep its imports relative, no `@/` alias). Each format is a `TextFormatHandler` subclass (`sniff`/`parse`/`serialize`) registered in `createFormatRegistry()`; adding a format means adding a handler there, a `TEXT_FORMATS` entry and a `*_MAX_SIZE` config key.
+- Large inputs are converted **record by record** instead of being read into the worker's memory: from `CONVERSION_STREAM_THRESHOLD_BYTES` (default 1 MB) upwards, `conversion.worker.ts` takes the streaming path when the source handler implements `canStream`/`readRecords` (CSV, and JSON whose top level is an array) and the target implements `createWriter` (all four formats). `decodeTextStream()` decodes the file in chunks, records are pulled one at a time and the `RecordWriter` output is piped to the `.part` file with backpressure, so peak memory follows the largest single record, not the file size. Anything else — XML/YAML sources, a JSON object at the top level, small files — falls back to the original read-parse-serialize path. Streaming output is byte-identical to `serialize()` on the whole collection, which `record-stream.spec.ts` and `conversion.worker.spec.ts` assert for every direction; keep that property when touching a writer (in particular do not re-indent built XML, whose text nodes may contain newlines). `CsvRecordWriter` needs the column union up front, so a CSV target replays the source stream once through `scan()` before writing. Structure limits stay document-wide through `createRecordBudget()`.
+- CSV/JSON default size limits are 10 MB because those two stream; XML/YAML keep the smaller in-memory limits. Multer's own `fileSize` is the max of every configured limit, so raising one raises the upload ceiling.
 - Multer streams uploads to `<CONVERSION_STORAGE_DIR>/incoming`; `TextConversionService` detects the source format (extension + content sniff), enforces the per-format size limit, then runs `worker/conversion.worker.ts` on a Piscina pool (`ConversionWorkerPool`, timeout → 408). The worker writes `<id>.<ext>.part`, which is renamed only on success, so partial results are never served. The storage dir must stay outside `UPLOADS_DIR`, which is publicly served.
 - Every request that has a file and target format gets a `conversions` row (`PROCESSING` → `SUCCESS`/`ERROR` + HTTP `error_code`). The row also carries `type` (`ConversionType`: `file` | `image`, default `file`) so the same history table can serve the upcoming image transformation pipeline; text conversions set it explicitly in `TextConversionService`, and any new pipeline must set its own value. Logs carry metadata only, never file content; parser error messages go to the client but not to logs.
 
@@ -107,3 +112,13 @@ New env values should be parsed through the validating `parseIntEnv` helper in t
 ### Module dependency direction
 
 `users` has no internal dependencies and owns both the `User` and `Otp` entities. `AuthTokenModule` (`src/common/auth-token`) sits below the feature modules and is imported by everything that needs `AccessTokenGuard` — `auth`, `rbac`, `user-profile`, `conversion`, `transformation-history`. `conversion` imports `transformation-history` (never the reverse), so the history module keeps its own MIME map instead of importing the conversion format registries. `auth` imports `users`, `mail` and `rbac`. Keep new feature modules following this direction — lower-level modules (`users`) should not import from higher-level ones (`auth`, `rbac`).
+
+### Testing (`jest.config.js`, `test/`)
+
+Two Jest `projects` share one merged coverage report and one global threshold: `unit` (`rootDir: src`, co-located `*.spec.ts`) and `integration` (`test/integration/*.e2e-spec.ts`, one file per requirement doc). Coverage excludes `main.ts`, `*.module.ts`, `dto/**`, `*.entity.ts`, `*.types.ts`, `*.constants.ts`, migrations, `data-source.ts` and `core/swagger/**`. `@nestjs/jwt` and `@nestjs/mapped-types` are ESM-only, so they are listed in `transformIgnorePatterns` and transpiled by ts-jest (`tsconfig.spec.json` sets `allowJs`).
+
+- `test/setup/env.ts` supplies test env defaults (fixed `JWT_SECRET`, `THROTTLE_LIMIT=1000`); `createTestApp()` loads config with `ignoreEnvFile: true`, so a developer `.env` never leaks into tests.
+- `createTestApp()` (`test/setup/test-app.ts`) builds the feature modules on the same pipeline as production: `configureApp()` in `src/core/app/app.setup.ts` is shared with `main.ts`, and so is `createThrottlerOptions()`. Keep global pipeline changes in `configureApp()` so both stay in sync. The harness swaps in an `InMemoryDatabase` (a `DataSource` double plus `InMemoryRepository` per entity, driven by TypeORM decorator metadata: defaults, generated ids, `select: false`, unique → `23505`, `onDelete: 'CASCADE'`), a `MailRecorder` in place of `MailerService` (the real `MailService` still runs), and in-process worker pools (no Piscina threads). Storage dirs point at a per-app temp dir. `reset()` re-seeds the roles, permissions and grants that the seed migrations create, so a new seed migration needs a matching `BASELINE_PERMISSIONS` entry.
+- `createQueryBuilder()` cannot run SQL in memory: its terminal methods call a per-repository `setQueryResolver()`. Area resolvers live in `test/setup/*-query-resolver.ts`, and raw SQL is only verified at the level of the query the service builds.
+- Auth in tests always goes through real signed cookies (`t.authCookie(user)`); never disable `AccessTokenGuard`. Time is faked with `useFakeClock()`, which fakes only `Date`.
+

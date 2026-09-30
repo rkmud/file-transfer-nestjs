@@ -6,10 +6,12 @@ import {
 
 export interface ConversionTask {
   inputPath: string;
+  inputSize: number;
   outputPath: string;
   sourceFormat: TextFormat;
   targetFormat: TextFormat;
   limits: ParseLimits;
+  streamThresholdBytes: number;
 }
 
 export type ConversionTaskResult =
