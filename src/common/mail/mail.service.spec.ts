@@ -1,5 +1,5 @@
 import { MailerService } from '@nestjs-modules/mailer';
-import { FakeClock, useFakeClock } from '../../test/setup/clock';
+import { FakeClock, useFakeClock } from '../../../test/setup/clock';
 import { MailService } from './mail.service';
 
 describe('MailService', () => {

@@ -13,7 +13,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
 import { InMemoryDatabase } from '../../../test/setup/in-memory-database';
 import { FakeClock, useFakeClock } from '../../../test/setup/clock';
-import { MailService } from '@/mail/mail.service';
+import { MailService } from '@/common/mail/mail.service';
 import { RbacRolesService } from '@/modules/rbac/services/rbac-roles.service';
 import { RbacUserRolesService } from '@/modules/rbac/services/rbac-user-roles.service';
 import { Otp, OtpPurpose } from '@/modules/users/otp.entity';
