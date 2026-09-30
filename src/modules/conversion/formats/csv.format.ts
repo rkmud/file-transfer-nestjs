@@ -159,7 +159,13 @@ export class CsvFormatHandler extends TextFormatHandler {
 
   async *readRecords(text: AsyncIterable<string>): AsyncGenerator<unknown> {
     const source = Readable.from(text);
-    const parser = source.pipe(parseStream({ skip_empty_lines: true }));
+    const parser = parseStream({ skip_empty_lines: true });
+
+    // `pipe()` does not forward source errors, so a failing text source (e.g.
+    // INVALID_ENCODING from decodeTextStream) would leave the parser open and
+    // hang the iteration below. Destroying it with the error ends the loop.
+    source.on('error', (error: Error) => parser.destroy(error));
+    source.pipe(parser);
 
     let header: string[] | undefined;
     let first: string[] | undefined;
